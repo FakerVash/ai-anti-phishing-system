@@ -1,0 +1,97 @@
+body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: #6A3571;
+    color: #FFE9FF;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.container {
+    background: #9000A1;
+    padding: 35px;
+    border-radius: 14px;
+    width: 420px;
+    text-align: center;
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.4);
+}
+
+h1 {
+    margin-bottom: 10px;
+    color: #FFE9FF;
+}
+
+p {
+    color: #DEBBE2;
+    font-size: 0.95rem;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin-top: 18px;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    font-size: 0.95rem;
+    background: #FFE9FF;
+    color: #6A3571;
+}
+
+button {
+    margin-top: 18px;
+    padding: 12px;
+    width: 100%;
+    background: #AC00BF;
+    color: #FFE9FF;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background: #865D8A;
+}
+
+#result {
+    margin-top: 22px;
+    font-size: 1.1rem;
+}
+
+.alert {
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 15px;
+    color: #FFE9FF; /* TEXTO BLANCO SIEMPRE */
+}
+
+.alert.phishing {
+    background-color: #9000A1;
+    box-shadow: 0 0 12px rgba(172, 0, 191, 0.6);
+}
+
+.alert.safe {
+    background-color: #6A3571;
+}
+
+.alert.warning,
+.alert.loading {
+    background-color: #865D8A;
+    color: #FFE9FF;
+}
+
+.alert.error {
+    background-color: #AC00BF;
+}
+
+.alert a {
+    display: inline-block;
+    margin-top: 6px;
+    color: #FFE9FF;
+    text-decoration: underline;
+}

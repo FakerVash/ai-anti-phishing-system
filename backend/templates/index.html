@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema Anti-Phishing Inteligente</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+    <h1>🛡️ Sistema Anti-Phishing Inteligente</h1>
+    <p>Analiza una URL y detecta si es phishing</p>
+
+    <input type="text" id="urlInput" placeholder="https://ejemplo.com">
+    <button onclick="checkURL()">Analizar</button>
+
+    <div id="result"></div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
