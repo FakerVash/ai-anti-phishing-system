@@ -1,42 +1,55 @@
 body {
     font-family: "Segoe UI", Tahoma, sans-serif;
-    background: #6A3571;
-    color: #FFE9FF;
+    background: linear-gradient(135deg, #6A3571, #9000A1);
+    color: #6A3571; /* texto por defecto para legibilidad sobre degradado */
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    margin: 0;
 }
 
 .container {
-    background: #9000A1;
-    padding: 35px;
-    border-radius: 14px;
+    background: #FFFFFF; /* contenedor blanco */
+    padding: 40px;
+    border-radius: 16px;
     width: 420px;
     text-align: center;
-    box-shadow: 0 0 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+}
+
+.logo {
+    width: 80px;
+    margin-bottom: 15px;
 }
 
 h1 {
     margin-bottom: 10px;
-    color: #FFE9FF;
+    color: #6A3571;
+    font-size: 1.6rem;
 }
 
 p {
-    color: #DEBBE2;
+    color: #865D8A;
     font-size: 0.95rem;
 }
 
 input {
     width: 100%;
-    padding: 12px;
+    padding: 14px;
     margin-top: 18px;
     border-radius: 8px;
-    border: none;
+    border: 1px solid #DEBBE2;
     outline: none;
     font-size: 0.95rem;
     background: #FFE9FF;
     color: #6A3571;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus {
+    transform: scale(1.02);
+    box-shadow: 0 0 10px rgba(172, 0, 191, 0.3);
 }
 
 button {
@@ -49,11 +62,12 @@ button {
     border-radius: 8px;
     font-size: 1rem;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: background 0.3s ease, transform 0.2s ease;
 }
 
 button:hover {
     background: #865D8A;
+    transform: scale(1.02);
 }
 
 #result {
@@ -67,12 +81,13 @@ button:hover {
     text-align: center;
     font-weight: bold;
     margin-top: 15px;
-    color: #FFE9FF; /* TEXTO BLANCO SIEMPRE */
+    color: #FFFFFF;
+    animation: fadeIn 0.3s ease-in-out;
 }
 
 .alert.phishing {
-    background-color: #9000A1;
-    box-shadow: 0 0 12px rgba(172, 0, 191, 0.6);
+    background-color: #AC00BF;
+    box-shadow: 0 0 15px rgba(172, 0, 191, 0.7);
 }
 
 .alert.safe {
@@ -82,11 +97,10 @@ button:hover {
 .alert.warning,
 .alert.loading {
     background-color: #865D8A;
-    color: #FFE9FF;
 }
 
 .alert.error {
-    background-color: #AC00BF;
+    background-color: #9000A1;
 }
 
 .alert a {
@@ -94,4 +108,9 @@ button:hover {
     margin-top: 6px;
     color: #FFE9FF;
     text-decoration: underline;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

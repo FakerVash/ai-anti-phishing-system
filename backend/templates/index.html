@@ -4,19 +4,20 @@
     <meta charset="UTF-8">
     <title>Sistema Anti-Phishing Inteligente</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icon/icon.png') }}">
 </head>
 <body>
+    <div class="container">
+        <img src="{{ url_for('static', filename='icon/icon.png') }}" alt="Logo" class="logo">
+        <h1>Sistema Anti-Phishing Inteligente</h1>
+        <p>Analiza una URL y detecta si es phishing</p>
 
-<div class="container">
-    <h1>🛡️ Sistema Anti-Phishing Inteligente</h1>
-    <p>Analiza una URL y detecta si es phishing</p>
+        <input type="text" id="urlInput" placeholder="https://ejemplo.com">
+        <button onclick="checkURL()">Analizar</button>
 
-    <input type="text" id="urlInput" placeholder="https://ejemplo.com">
-    <button onclick="checkURL()">Analizar</button>
+        <div id="result"></div>
+    </div>
 
-    <div id="result"></div>
-</div>
-
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
