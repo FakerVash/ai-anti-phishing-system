@@ -24,7 +24,7 @@ def is_valid_url(url):
     """Valida formato básico de URL"""
     regex = re.compile(
         r'^(https?://)?'         # http o https (opcional ahora)
-        r'([a-zA-Z0-9.-]+)'        # dominio
+        r'([a-zA-Z0-9._-]+)'       # dominio (agregado _ para subdominios como kucoinlogin_)
         r'(\.[a-zA-Z]{2,})'        # TLD
         r'(/.*)?$'                # ruta opcional
     )
