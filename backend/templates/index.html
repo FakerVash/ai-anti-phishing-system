@@ -8,9 +8,13 @@
 </head>
 <body>
     <div class="container">
-        <img src="{{ url_for('static', filename='icon/icon.png') }}" alt="Logo" class="logo">
-        <h1>Sistema Anti-Phishing Inteligente</h1>
-        <p>Analiza una URL y detecta si es phishing</p>
+        <div class="header">
+            <div class="header-text">
+                <h1>Sistema Anti-Phishing Inteligente</h1>
+                <p class="subtitle">Analiza una URL y detecta si es phishing</p>
+            </div>
+            <img src="{{ url_for('static', filename='icon/icon.png') }}" alt="Logo" class="logo">
+        </div>
 
         <input type="text" id="urlInput" placeholder="https://ejemplo.com">
         <button onclick="checkURL()">Analizar</button>

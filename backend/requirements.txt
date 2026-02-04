@@ -1,2 +1,9 @@
 flask
 pandas
+requests
+python-dotenv
+anthropic
+urllib3
+certifi
+gunicorn
+flask-cors
