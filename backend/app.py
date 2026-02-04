@@ -193,5 +193,54 @@ def check_url():
     return jsonify(response), 200
 
 
+@app.route("/chat", methods=["POST"])
+def chat():
+    """
+    Endpoint para chat interactivo con IA sobre URLs analizadas.
+    """
+    # Importar dentro de la función para evitar dependencias circulares si las hubiera
+    from chat_service import chat_with_ai, get_suggested_questions
+    
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({
+            "status": "error",
+            "answer": "No se recibieron datos."
+        }), 400
+    
+    url = data.get("url", "").strip()
+    question = data.get("question", "").strip()
+    analysis_context = data.get("analysis_context", {})
+    
+    # Validaciones
+    if not url:
+        return jsonify({
+            "status": "error",
+            "answer": "URL no proporcionada."
+        }), 400
+    
+    if not question:
+        return jsonify({
+            "status": "error",
+            "answer": "Pregunta no proporcionada."
+        }), 400
+    
+    if not analysis_context:
+        return jsonify({
+            "status": "error",
+            "answer": "Primero debes analizar una URL antes de hacer preguntas."
+        }), 400
+    
+    # Generar respuesta
+    result = chat_with_ai(url, question, analysis_context)
+    
+    # Agregar sugerencias si es la primera pregunta
+    if result.get("status") == "success":
+        result["suggested_questions"] = get_suggested_questions(analysis_context)
+    
+    return jsonify(result), 200
+
+
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Sistema Anti-Phishing Inteligente</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='icon/icon.png') }}">
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -19,9 +21,40 @@
         <input type="text" id="urlInput" placeholder="https://ejemplo.com">
         <button onclick="checkURL()">Analizar</button>
 
-        <div id="result"></div>
+        <div class="results-wrapper">
+            <!-- Columna Izquierda: Resultados -->
+            <div id="result" class="results-column"></div>
+
+            <!-- Columna Derecha: Chat -->
+            <div id="chatSection" class="chat-section results-column" style="display: none;">
+                <div class="chat-header">
+                    <h3>💬 Asistente IA</h3>
+                    <p class="chat-subtitle">Pregunta sobre este análisis</p>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Mensajes aparecerán aquí -->
+                </div>
+
+                <div class="suggested-questions" id="suggestedQuestions">
+                    <!-- Preguntas sugeridas aparecerán aquí -->
+                </div>
+
+                <div class="chat-input-container">
+                    <input type="text" id="chatInput" placeholder="Escribe tu pregunta..."
+                        onkeypress="handleChatKeyPress(event)">
+                    <button onclick="sendChatMessage()" id="chatSendBtn">Enviar</button>
+                </div>
+
+                <div class="chat-limit" id="chatLimit">
+                    <small>Preguntas: <span id="questionsLeft">10</span>/10</small>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='chat.js') }}"></script>
 </body>
+
 </html>

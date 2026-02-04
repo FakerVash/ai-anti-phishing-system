@@ -180,6 +180,11 @@ function checkURL() {
             }
 
             resultDiv.innerHTML = html;
+
+            // Inicializar chat con los datos del análisis
+            if (typeof initializeChat === 'function') {
+                initializeChat(data);
+            }
         })
         .catch((error) => {
             resultDiv.className = "alert error";
