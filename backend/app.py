@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 from virustotal_service import check_url_virustotal
 from detector import heuristic_analysis
 from ai_analyzer import analyze_with_ai
@@ -9,6 +10,7 @@ import re
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Habilitar CORS para requests desde otros dominios
 
 # Validación y normalización de URL
 def normalize_url(url):
