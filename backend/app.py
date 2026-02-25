@@ -1,16 +1,22 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from virustotal_service import check_url_virustotal
-from detector import heuristic_analysis
+from detector import heuristic_analysis, check_identity_and_typosquatting
 from ai_analyzer import analyze_with_ai
+from logger import log_analysis
 from dotenv import load_dotenv
 import re
+import os
 
 # Cargar variables de entorno desde .env
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Habilitar CORS para requests desde otros dominios
+
+# Configuración de servicios para Health Check
+vt_configured = os.getenv("VT_API_KEY") is not None and os.getenv("VT_API_KEY") != "your_vt_api_key_here"
+gemini_configured = os.getenv("CLAUDE_API_KEY") is not None and os.getenv("CLAUDE_API_KEY") != "your_claude_api_key_here"
 
 # Validación y normalización de URL
 def normalize_url(url):
@@ -39,10 +45,6 @@ def home():
 @app.route("/health")
 def health():
     """Endpoint de health check"""
-    import os
-    
-    gemini_configured = os.getenv("GEMINI_API_KEY") and os.getenv("GEMINI_API_KEY") != "your_gemini_api_key_here"
-    vt_configured = os.getenv("VT_API_KEY") is not None
     
     return jsonify({
         "status": "healthy",
@@ -79,17 +81,21 @@ def check_url():
             "risk_score": 0
         }), 400
     
-    # Normalizar URL (agregar https:// si falta)
+    # Normalizar URL 
     url = normalize_url(url)
-    print(f"🔗 URL normalizada: {url}")
+    print(f" URL normalizada: {url}")
 
-    # 1. Análisis heurístico
-    print("🔍 Iniciando análisis heurístico...")
+    # 1. Análisis de Identidad (Motor VIP y Anti-Suplantación)
+    print("🔍 Iniciando Motor de Identidad...")
+    identity_result = check_identity_and_typosquatting(url)
+    
+    # 2. Análisis heurístico
+    print(" Iniciando análisis heurístico...")
     try:
         heuristic_result = heuristic_analysis(url)
-        print(f"📊 Análisis heurístico completado: Score={heuristic_result['score']}, Nivel={heuristic_result['risk_level']}")
+        print(f" Análisis heurístico completado: Score={heuristic_result['score']}, Nivel={heuristic_result['risk_level']}")
     except Exception as e:
-        print(f"❌ Error en análisis heurístico: {e}")
+        print(f" Error en análisis heurístico: {e}")
         heuristic_result = {
             "score": 0,
             "risk_level": "DESCONOCIDO",
@@ -117,10 +123,10 @@ def check_url():
 
     print(f"📊 VirusTotal completado: Status={vt_result.get('status')}")
 
-    # 3. Análisis con IA (Gemini)
+    # 3. Análisis con IA (Claude)
     print("🤖 Iniciando análisis con IA...")
     try:
-        ai_result = analyze_with_ai(url, vt_result, heuristic_result)
+        ai_result = analyze_with_ai(url, vt_result, heuristic_result, identity_result)
         print(f"✅ Análisis con IA completado (fuente: {ai_result.get('source', 'unknown')})")
     except Exception as e:
         print(f"❌ Error en análisis con IA: {e}")
@@ -132,33 +138,73 @@ def check_url():
             "ai_recommendations": ["Procede con precaución."]
         }
 
-    # 4. Construir respuesta unificada
-    # Determinar el estado global basado en TODOS los análisis (incluyendo IA)
-    vt_status = vt_result.get("status", "unknown")
-    ai_risk_level = ai_result.get("ai_risk_level", "Desconocido").lower()
+    # 4. Construir respuesta unificada (Lógica de votación 2 de 3)
     
-    # Prioridad: IA > VirusTotal > Heurístico
-    # Si la IA detecta Alto/Crítico, tiene prioridad sobre los demás
-    if "crítico" in ai_risk_level or "critico" in ai_risk_level:
+    # Obtener nivel de riesgo de IA para la votación
+    ai_risk_level = ai_result.get("ai_risk_level", "Desconocido")
+
+    votes = {
+        "virustotal": 0,
+        "heuristic": 0,
+        "ai": 0
+    }
+    
+    # Voto 1: VirusTotal
+    # Consideramos phishing si es malicioso o sospechoso (al menos 1 motor)
+    vt_malicious = vt_result.get("stats", {}).get("malicious", 0)
+    vt_suspicious = vt_result.get("stats", {}).get("suspicious", 0)
+    total_vt_alerts = vt_malicious + vt_suspicious
+    
+    if vt_result.get("status") in ["phishing", "malicious"] or total_vt_alerts > 0:
+        votes["virustotal"] = 1
+        
+    # Voto 2: Heurístico
+    # Consideramos phishing si el score es alto (>= 60)
+    # Consideramos sospechoso si el score es medio (>= 20, cuenta como medio voto para el mensaje)
+    if heuristic_result["score"] >= 60:
+        votes["heuristic"] = 1
+    elif heuristic_result["score"] >= 20:
+        votes["heuristic"] = 0.5
+        
+    # Voto 3: IA
+    # Consideramos phishing si el riesgo es Alto o Crítico
+    # Consideramos sospechoso si es Medio (cuenta como medio voto para el mensaje)
+    ai_risk_lower = ai_risk_level.lower()
+    if "alto" in ai_risk_lower or "high" in ai_risk_lower or "crítico" in ai_risk_lower or "critical" in ai_risk_lower:
+        votes["ai"] = 1
+    elif "medio" in ai_risk_lower or "medium" in ai_risk_lower or "precaución" in ai_risk_lower:
+        votes["ai"] = 0.5
+
+    total_votes = sum(votes.values())
+    
+    # Conteo de alertas para el mensaje (cuantos sistemas avisaron algo)
+    systems_alerting = sum(1 for v in votes.values() if v > 0)
+    
+    # Lógica de decisión final combinando Identidad + Votación
+    if identity_result["status"] == "verified":
+        global_status = "safe"
+        global_reason = identity_result["reason"]
+    elif identity_result["status"] == "impersonation":
         global_status = "phishing"
-        global_reason = "IA detectó amenaza crítica con análisis contextual"
-    elif "alto" in ai_risk_level:
-        global_status = "suspicious"
-        global_reason = "IA detected riesgo alto mediante análisis de patrones"
-    elif vt_status == "phishing" or heuristic_result["score"] >= 60:
+        global_reason = identity_result["reason"]
+    elif total_votes >= 2:
         global_status = "phishing"
-        global_reason = "Múltiples motores o análisis heurístico crítico"
-    elif "medio" in ai_risk_level or vt_status == "suspicious" or heuristic_result["score"] >= 40:
+        global_reason = f"ALERTA: {systems_alerting}/3 sistemas detectaron amenazas críticas. (Regla de consenso)"
+    elif total_votes >= 0.5:
         global_status = "suspicious"
-        global_reason = "Indicadores de riesgo detectados"
+        if systems_alerting >= 2:
+            global_reason = f"URL SOSPECHOSA: {systems_alerting}/3 sistemas detectaron señales de alerta combinadas."
+        else:
+            global_reason = f"PRECAUCIÓN: {systems_alerting}/3 sistemas detectaron posibles riesgos."
     else:
-        global_status = vt_status if vt_status != "unknown" else "safe"
-        global_reason = "No se detectaron amenazas significativas"
+        global_status = "safe"
+        global_reason = "No se detectaron amenazas significativas (0/3 sistemas)"
 
     response = {
         "status": global_status,
         "reason": global_reason,
         "url": url,
+        "identity": identity_result, # Incluimos el resultado de identidad
         
         # Análisis de IA
         "ai_analysis": ai_result.get("ai_analysis", ""),
@@ -190,6 +236,9 @@ def check_url():
         }
     }
 
+    # Log the result
+    log_analysis(response)
+
     return jsonify(response), 200
 
 
@@ -214,23 +263,15 @@ def chat():
     analysis_context = data.get("analysis_context", {})
     
     # Validaciones
-    if not url:
-        return jsonify({
-            "status": "error",
-            "answer": "URL no proporcionada."
-        }), 400
-    
     if not question:
         return jsonify({
             "status": "error",
             "answer": "Pregunta no proporcionada."
         }), 400
     
-    if not analysis_context:
-        return jsonify({
-            "status": "error",
-            "answer": "Primero debes analizar una URL antes de hacer preguntas."
-        }), 400
+    # Permitir chat sin URL/Contexto (Chat General)
+    if not url:
+        url = "General"
     
     # Generar respuesta
     result = chat_with_ai(url, question, analysis_context)

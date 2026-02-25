@@ -23,6 +23,141 @@ SUSPICIOUS_EXTENSIONS = [
     ".cmd", ".com", ".pif", ".vbs"
 ]
 
+# Dominios de Alta Confianza (Identidad Verificada)
+HIGH_TRUST_DOMAINS = {
+    # Globales
+    "google.com": "Google",
+    "paypal.com": "PayPal",
+    "stripe.com": "Stripe",
+    
+    # Servicios Tech y Correo
+    "google.com": "Google",
+    "gmail.com": "Gmail",
+    "outlook.com": "Outlook",
+    "hotmail.com": "Hotmail",
+    "live.com": "Microsoft Live",
+    "microsoftonline.com": "Microsoft",
+    "office.com": "Microsoft Office",
+    "amazon.com": "Amazon",
+    "apple.com": "Apple",
+    "netflix.com": "Netflix",
+    "github.com": "GitHub",
+    "instagram.com": "Instagram",
+    "facebook.com": "Facebook",
+    "linkedin.com": "LinkedIn",
+    "twitter.com": "Twitter",
+    "x.com": "X (Twitter)",
+
+    # Bancos (Ecuador y Regionales)
+    "bancopichincha.com": "Banco Pichincha",
+    "pichincha.com": "Banco Pichincha",
+    "guayaquil.com": "Banco Guayaquil",
+    "bancoguayaquil.com": "Banco Guayaquil",
+    "produbanco.com": "Produbanco",
+    "pacifico.fin.ec": "Banco del Pacífico",
+    "bolivariano.com": "Banco Bolivariano",
+    "internacional.com.ec": "Banco Internacional",
+    "austro.fin.ec": "Banco del Austro",
+    "bancodeloja.fin.ec": "Banco de Loja",
+    "cooprogreso.fin.ec": "Cooprogreso",
+    "jep.coop": "Cooperativa JEP",
+    "mutualistapichincha.com": "Mutualista Pichincha",
+}
+
+def get_base_domain(domain):
+    """Extrae el dominio base (ej: www.google.com -> google.com)"""
+    parts = domain.lower().split('.')
+    if len(parts) >= 2:
+        # Manejo simple de .com.ec, .fin.ec, etc.
+        if parts[-2] in ["com", "fin", "org", "net", "gob", "edu", "mil"] and len(parts) >= 3:
+            return ".".join(parts[-3:])
+        return ".".join(parts[-2:])
+    return domain
+
+def calculate_levenshtein(s1, s2):
+    """Calcula la distancia de Levenshtein entre dos strings"""
+    if len(s1) < len(s2):
+        return calculate_levenshtein(s2, s1)
+
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+
+    return previous_row[-1]
+
+def check_identity_and_typosquatting(url):
+    """
+    Analiza si la URL es un dominio de alta confianza o un intento de suplantación.
+    """
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower()
+    if ':' in domain:
+        domain = domain.split(':')[0]
+    
+    base_domain = get_base_domain(domain)
+    full_hostname = domain
+    
+    # Lista de hostings gratuitos/sospechosos donde se suelen crear subdominios de phishing
+    SUSPICIOUS_SUFFIXES = ["webcindario.com", "000webhostapp.com", "vercel.app", "github.io", "web.app", "firebaseapp.com"]
+    
+    # 1. ¿Es un dominio de confianza exacto?
+    if base_domain in HIGH_TRUST_DOMAINS:
+        return {
+            "status": "verified",
+            "name": HIGH_TRUST_DOMAINS[base_domain],
+            "reason": f"Identidad confirmada: Sitio oficial de {HIGH_TRUST_DOMAINS[base_domain]}."
+        }
+    
+    # 2. ¿Es un ataque de Typosquatting (suplantación)?
+    for trust_domain, trust_name in HIGH_TRUST_DOMAINS.items():
+        trust_base = trust_domain.split('.')[0]
+        
+        # Revisamos tanto el dominio base como el hostname completo (subdominios)
+        # Esto captura habilitar-outl3.webcindario.com
+        parts_to_check = [base_domain.split('.')[0]]
+        if base_domain in SUSPICIOUS_SUFFIXES:
+            # Si el dominio base es un hosting, revisamos los subdominios
+            parts_to_check.extend(full_hostname.split('.'))
+        else:
+            # Siempre revisar si la marca está oculta en algún lado
+            parts_to_check.extend(full_hostname.split('.'))
+
+        for part in set(parts_to_check):
+            if not part or part == "com" or part == "www": continue
+            
+            # Caso 1: Distancia de Levenshtein (ej: outl3 vs outlook)
+            if part != trust_base:
+                distance = calculate_levenshtein(part, trust_base)
+                if distance <= 2 and len(trust_base) > 3:
+                    # Umbral más estricto para partes cortas
+                    if distance == 1 or len(part) > 4:
+                        return {
+                            "status": "impersonation",
+                            "target": trust_name,
+                            "reason": f"ALERTA DE SUPLANTACIÓN: El término '{part}' parece intentar imitar a {trust_name} ({trust_domain})."
+                        }
+
+            # Caso 2: Contiene la marca pero con extras sospechosos (ej: pichincha-login)
+            if trust_base in part and len(part) > len(trust_base):
+                # Evitar falsos positivos si es una palabra legítima que contiene la otra (difícil en este contexto)
+                return {
+                    "status": "impersonation",
+                    "target": trust_name,
+                    "reason": f"ALERTA DE SUPLANTACIÓN: Se detectó el nombre de '{trust_name}' en un dominio no oficial ({part})."
+                }
+
+    return {"status": "unknown"}
+
+
 
 def calculate_entropy(text):
     """Calcula la entropía de Shannon de un texto (detecta strings aleatorios)"""
@@ -118,11 +253,12 @@ def heuristic_analysis(url):
     path = parsed.path
     
     # 1. Uso excesivo de guiones (phishing común)
-    if domain.count("-") >= 3:
+    # Aumentamos umbral: 4 o más es sospechoso, 3 es "múltiples"
+    if domain.count("-") >= 4:
         score += 15
         reasons.append(f"Uso excesivo de guiones en el dominio ({domain.count('-')} guiones)")
-    elif domain.count("-") >= 2:
-        score += 8
+    elif domain.count("-") >= 3:
+        score += 5  # Bajamos puntaje de 8 a 5
         reasons.append("Múltiples guiones en el dominio")
     
     # 2. Números largos en la URL
@@ -132,17 +268,21 @@ def heuristic_analysis(url):
         reasons.append(f"Números largos sospechosos: {', '.join(long_numbers[:2])}")
     
     # 3. Palabras clave sospechosas
+    # Refinamos: solo si están en el host o path, y bajamos peso
     url_lower = url.lower()
     found_keywords = [word for word in SUSPICIOUS_KEYWORDS if word in url_lower]
     if found_keywords:
-        score += min(20, len(found_keywords) * 5)
-        reasons.append(f"Palabras de phishing detectadas: {', '.join(found_keywords[:3])}")
+        # Reducimos peso por palabra de 5 a 3, y tope de 20 a 15
+        points = min(15, len(found_keywords) * 3)
+        score += points
+        reasons.append(f"Palabras clave detectadas: {', '.join(found_keywords[:3])}")
     
     # 4. URL demasiado larga
-    if len(url) > 100:
+    # Aumentamos umbral de 100 a 150 caracteres para evitar falsos positivos en deep links
+    if len(url) > 150:
         score += 10
         reasons.append(f"URL excesivamente larga ({len(url)} caracteres)")
-    elif len(path) > 50:
+    elif len(path) > 80:  # Path muy largo (aumentado de 50 a 80)
         score += 5
         reasons.append("Ruta de URL muy larga")
     
@@ -168,7 +308,8 @@ def heuristic_analysis(url):
     
     # 9. Análisis de entropía del dominio (detecta dominios aleatorios)
     domain_entropy = calculate_entropy(domain)
-    if domain_entropy > 4.0:  # Alta aleatoriedad
+    # Aumentamos umbral de 4.0 a 4.5 para ser menos sensible
+    if domain_entropy > 4.5:  # Alta aleatoriedad
         score += 12
         reasons.append(f"Dominio con alta aleatoriedad (entropía: {domain_entropy:.2f})")
     

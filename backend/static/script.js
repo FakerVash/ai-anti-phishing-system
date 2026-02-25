@@ -1,4 +1,101 @@
 function checkURL() {
+    // Inject Custom Styles for Consensus Badge if not present
+    if (!document.getElementById('consensus-styles')) {
+        const style = document.createElement('style');
+        style.id = 'consensus-styles';
+        style.innerHTML = `
+            .consensus-section {
+                box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+                border-left-width: 6px !important;
+                transition: transform 0.2s;
+            }
+            .consensus-section:hover {
+                transform: translateY(-2px);
+            }
+            .consensus-section.phishing {
+                background: linear-gradient(135deg, #fed7d7 0%, #fff5f5 100%);
+                border-left-color: #e53e3e !important;
+                border: 1px solid #fc8181;
+            }
+            .consensus-section.safe {
+                background: linear-gradient(135deg, #c6f6d5 0%, #f0fff4 100%);
+                border-left-color: #38a169 !important;
+                border: 1px solid #68d391;
+            }
+            .consensus-section.warning {
+                background: linear-gradient(135deg, #feebc8 0%, #fffaf0 100%);
+                border-left-color: #dd6b20 !important;
+                border: 1px solid #f6ad55;
+            }
+            .consensus-main-text {
+                font-size: 1.25em;
+                font-weight: bold;
+                color: #1a202c;
+                margin-bottom: 8px;
+            }
+            .consensus-note {
+                font-size: 0.9em;
+                color: #718096;
+                font-style: italic;
+            }
+            .score-circle {
+                border-width: 6px !important;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            }
+            /* Override for Critical/High -> Phishing/Danger */
+            .score-circle.critical, .score-circle.phishing {
+                background: #e53e3e !important;
+                border-color: #9b2c2c !important;
+                color: #ffffff !important;
+            }
+            /* Override for High -> Warning/Orange */
+            .score-circle.high {
+                background: #dd6b20 !important;
+                border-color: #9c4221 !important;
+                color: #ffffff !important;
+            }
+            /* Override for Medium -> Yellow/Caution */
+            .score-circle.medium {
+                background: #d69e2e !important;
+                border-color: #975a16 !important;
+                color: #ffffff !important;
+            }
+            /* Override for Low -> Safe/Green */
+            .score-circle.low, .score-circle.safe {
+                background: #38a169 !important;
+                border-color: #276749 !important;
+                color: #ffffff !important;
+            }
+            .score-circle .score-max {
+                color: rgba(255,255,255,0.8) !important;
+            }
+            .identity-badge {
+                display: inline-block;
+                padding: 6px 12px;
+                border-radius: 20px;
+                font-weight: bold;
+                margin-top: 10px;
+                font-size: 0.9em;
+            }
+            .identity-badge.verified {
+                background: #e6fffa;
+                color: #2c7a7b;
+                border: 1px solid #81e6d9;
+            }
+            .identity-badge.impersonation {
+                background: #fff5f5;
+                color: #c53030;
+                border: 1px solid #feb2b2;
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(229, 62, 62, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
     const url = document.getElementById("urlInput").value.trim();
     const resultDiv = document.getElementById("result");
 
@@ -34,7 +131,7 @@ function checkURL() {
             // Determinar clase de estilo basada en estado
             let statusClass = "safe";
             let statusIcon = "✅";
-            let statusTitle = "URL APARENTEMENTE SEGURA";
+            let statusTitle = data.identity && data.identity.status === "verified" ? "URL OFICIAL VERIFICADA" : "URL SEGURA";
 
             if (data.status === "phishing") {
                 statusClass = "phishing";
@@ -53,10 +150,40 @@ function checkURL() {
             resultDiv.classList.add(statusClass);
 
             // Construir HTML con toda la información
+            let voteCount = 0;
+            // Calcular votos desde el frontend también para mostrar detalle
+            // Nota: El backend ya hizo la lógica, pero aquí lo recalculamos visualmente si queremos o usamos el reason del backend
+
+            // Extraer el conteo del reason si es posible, o simplemente mostrar el status
+            let consensusText = data.reason;
+
             let html = `
                 <div class="result-header">
                     <h2>${statusIcon} ${statusTitle}</h2>
                     <div class="url-analyzed">${data.url || url}</div>
+                    ${data.identity && data.identity.status === 'verified' ? `
+                        <div class="identity-badge verified">
+                            🛡️ Identidad Verificada: ${data.identity.name}
+                        </div>
+                    ` : ''}
+                    ${data.identity && data.identity.status === 'impersonation' ? `
+                        <div class="identity-badge impersonation">
+                            🚨 Alerta de Suplantación detectada
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Nueva Card de Consenso
+            html += `
+                <div class="section consensus-section ${statusClass}">
+                    <h3>📊 Resultado del Consenso</h3>
+                    <div class="consensus-content">
+                        <div class="consensus-main-text">${consensusText}</div>
+                        <div class="consensus-note">
+                            ℹ️ Decisión basada en la coincidencia de al menos 2 de los 3 motores de análisis (IA, VirusTotal, Heurística).
+                        </div>
+                    </div>
                 </div>
             `;
 
@@ -64,7 +191,7 @@ function checkURL() {
             if (data.ai_analysis) {
                 html += `
                     <div class="section ai-section">
-                        <h3>🤖 Análisis con Inteligencia Artificial</h3>
+                        <h3>Análisis con Inteligencia Artificial</h3>
                         <div class="ai-content">
                             <p class="ai-analysis">${data.ai_analysis}</p>
                             <div class="risk-badge ${getRiskClass(data.ai_risk_level)}">
@@ -82,7 +209,7 @@ function checkURL() {
                         ` : ''}
                         
                         ${data.metadata && data.metadata.ai_source ? `
-                            <small class="ai-source">Fuente: ${data.metadata.ai_source === 'gemini' ? '🌟 Google Gemini' : '📋 Análisis Estático'}</small>
+                            <small class="ai-source">Fuente: ${data.metadata.ai_source === 'claude' ? '🧠 Anthropic Claude' : '📋 Análisis Estático'}</small>
                         ` : ''}
                     </div>
                 `;
@@ -168,13 +295,7 @@ function checkURL() {
                             </div>
                         ` : ''}
                         
-                        ${vt.analysis_url ? `
-                            <div class="vt-link">
-                                <a href="${vt.analysis_url}" target="_blank" rel="noopener noreferrer">
-                                    🔗 Ver análisis completo en VirusTotal →
-                                </a>
-                            </div>
-                        ` : ''}
+
                     </div>
                 `;
             }

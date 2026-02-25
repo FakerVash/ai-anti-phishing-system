@@ -35,52 +35,70 @@ def create_chat_prompt(url, question, analysis_context):
     heuristic = analysis_context.get("heuristic", {})
     vt = analysis_context.get("virustotal", {})
     
-    prompt = f"""Eres un asistente experto en ciberseguridad especializado en phishing y protección online.
+    # CONOCIMIENTO DEL PROYECTO (Contexto estático)
+    PROJECT_KNOWLEDGE = """
+    **SOBRE ESTE PROYECTO (Sistema Anti-Phishing con IA):**
+    - **Nombre:** CyberGuard AI Security System.
+    - **Propósito:** Blindar a los usuarios contra el phishing y robo de identidad.
+    - **Componentes de Análisis:** 
+        1. **Motor de Identidad (Identity Motor):** Nuestra joya de la corona. Reconoce dominios oficiales de bancos y marcas famosas para dar fe de su legitimidad o detectar suplantaciones (typosquatting).
+        2. **Heurística Avanzada:** Escanea el ADN de la URL buscando trucos técnicos (IPs, caracteres raros, palabras de urgencia).
+        3. **VirusTotal:** Consulta el historial mundial de reportes de virus y estafas.
+        4. **Cerebro IA (Claude):** Orquesta todo para dar un veredicto humano.
+    """
+    
+    # Prompt simplificado para chat general (sin URL analizada o URL "General")
+    if not analysis_context or url == "General":
+        prompt = f"""Eres 'CyberGuard', el asistente oficial de este Sistema Anti-Phishing.
+        
+**TU IDENTIDAD:**
+- Eres el experto residente de este sistema.
+- Conoces perfectamente cómo funciona el proyecto (backend, heurística, IA).
+- Tu objetivo es educar y guiar al usuario.
 
-**CONTEXTO:**
-El usuario analizó esta URL: {url}
-
-**ANÁLISIS PREVIO REALIZADO:**
-
-Análisis con IA:
-- Nivel de riesgo: {ai_risk}
-- Análisis: {ai_analysis}
-
-Análisis Heurístico:
-- Score: {heuristic.get('score', 0)}/100
-- Nivel: {heuristic.get('risk_level', 'DESCONOCIDO')}
-- Indicadores: {len(heuristic.get('indicators', []))}
-
-VirusTotal:
-- Maliciosos: {vt.get('stats', {}).get('malicious', 0)}
-- Sospechosos: {vt.get('stats', {}).get('suspicious', 0)}
+**CONOCIMIENTO DEL PROYECTO:**
+{PROJECT_KNOWLEDGE}
 
 **PREGUNTA DEL USUARIO:**
 "{question}"
 
 **TUS INSTRUCCIONES:**
-
-1. **SOLO** responde preguntas relacionadas con:
-   - La URL analizada
-   - Ciberseguridad y phishing
-   - Protección online
-   - Conceptos técnicos mencionados en el análisis
-
-2. Si la pregunta NO está relacionada, responde:
-   "Solo puedo ayudarte con preguntas sobre ciberseguridad y la URL que analizaste. ¿Tienes alguna duda sobre esta URL o sobre cómo protegerte del phishing?"
-
-3. Usa el contexto del análisis previo para dar respuestas específicas
-
-4. Sé educativo pero conciso (2-3 párrafos máximo)
-
-5. Usa emojis moderadamente para mejor UX (🚨 ⚠️ ✅ 💡 🛡️)
-
-6. Si preguntan qué hacer después de ser víctima, da pasos concretos
-
-**FORMATO DE RESPUESTA:**
-Respuesta directa en texto plano, sin formato especial.
+1. **Responde dudas sobre el proyecto:** Si preguntan "qué hace esto", "cómo funciona", "para qué sirve la web", USA la información de **CONOCIMIENTO DEL PROYECTO**.
+2. **Ciberseguridad General:** Responde dudas generales (contraseñas, seguridad, etc.) con tu conocimiento experto.
+3. **Personalidad:** Sé profesional, entusiasta sobre el proyecto y muy claro.
 """
+        return prompt
+
+    # Prompt para chat con contexto de análisis (Cuando hay una URL)
+    identity = analysis_context.get("identity", {})
+    identity_status = identity.get("status", "unknown")
     
+    prompt = f"""Eres 'CyberGuard', el asistente experto de élite de este Sistema Anti-Phishing.
+    
+**CONOCIMIENTO DEL PROYECTO:**
+{PROJECT_KNOWLEDGE}
+
+**CONTEXTO DEL ANÁLISIS ACTUAL:**
+El usuario ha analizado la URL: {url}
+- **Veredicto de Identidad:** {identity_status.upper()} {"(Confirmado como " + identity.get('name', '') + ")" if identity_status == 'verified' else ""}
+- **Riesgo General:** {ai_risk}
+- **Detalle Técnico IA:** {ai_analysis}
+- **Score Heurístico:** {heuristic.get('score', 0)}/100
+- **Detecciones VirusTotal:** {vt.get('stats', {}).get('malicious', 0)} amenazas confirmadas.
+
+**PREGUNTA DEL USUARIO:**
+"{question}"
+
+**REGLAS DE ORO PARA TUS RESPUESTAS:**
+1. **Tolerancia Cero a la Suplantación:** Si el sistema detecta "IMPERSONATION", tu prioridad absoluta es advertir al usuario de que alguien intenta engañarle. Nunca digas "no es malicioso" si se detecta Typosquatting (suplantación de nombre). Explica que el fraude empieza con el engaño visual.
+2. **Experticismo Proactivo:** No te limites a responder. Si ves un riesgo alto, advierte con firmeza. Si es seguro y está verificado por nuestro Motor de Identidad, dale tranquilidad total al usuario explicando POR QUÉ confiamos en ese dominio.
+3. **Formato Rico:** USA **negritas** para conceptos clave, `código` para partes de la URL y listas punteadas para pasos a seguir.
+4. **Coherencia:** Mantén consistencia con el veredicto dado anteriormente. No contradigas el reporte técnico.
+5. **Educación:** Explica conceptos como "Typosquatting", "Títulos de confianza" o "Entropía" si son relevantes para la pregunta.
+
+**TU VOZ:**
+Eres profesional, servicial y experto en seguridad de élite. No eres un bot aburrido, eres un defensor del usuario. No dudes en ser tajante si detectas una estafa.
+"""
     return prompt
 
 
@@ -156,24 +174,29 @@ def chat_with_ai(url, question, analysis_context):
 
 def get_suggested_questions(analysis_context):
     """
-    Genera preguntas sugeridas basadas en el análisis.
+    Genera preguntas sugeridas inteligentes basadas en el tipo de hallazgo.
     """
     ai_risk = analysis_context.get("ai_risk_level", "").lower()
-    heuristic_score = analysis_context.get("heuristic", {}).get("score", 0)
+    identity = analysis_context.get("identity", {})
+    identity_status = identity.get("status", "unknown")
     
     suggestions = []
     
-    # Siempre incluir
-    suggestions.append("¿Por qué esta URL es peligrosa/segura?")
-    
-    # Basado en riesgo
-    if "crítico" in ai_risk or "alto" in ai_risk or heuristic_score >= 40:
-        suggestions.append("¿Qué pasaría si ingreso mis datos aquí?")
-        suggestions.append("¿Qué hago si ya visité este sitio?")
+    if identity_status == "verified":
+        suggestions.append(f"¿Por qué confían en {identity.get('name')}?")
+        suggestions.append("¿Cómo sé que no es un clon perfecto?")
+        suggestions.append("¿Qué es un dominio de confianza?")
+    elif identity_status == "impersonation":
+        suggestions.append("¿Cómo detectaron la suplantación?")
+        suggestions.append("¿A quién intentan imitar?")
+        suggestions.append("¿Qué hago si puse mi clave ahí?")
+    elif "crítico" in ai_risk or "alto" in ai_risk:
+        suggestions.append("¿Qué hace que esta URL sea tan peligrosa?")
+        suggestions.append("¿Cómo robarían mi información?")
+        suggestions.append("¿Cómo puedo reportar este sitio?")
     else:
-        suggestions.append("¿Cómo verifico que un sitio es legítimo?")
+        suggestions.append("¿Qué revisaron para decir que es seguro?")
+        suggestions.append("¿Qué es el phishing?")
+        suggestions.append("Consejos para no caer en estafas")
     
-    # Educativas
-    suggestions.append("¿Qué es el phishing y cómo me protejo?")
-    
-    return suggestions[:4]  # Máximo 4 sugerencias
+    return suggestions[:3]

@@ -5,50 +5,55 @@
     <meta charset="UTF-8">
     <title>Sistema Anti-Phishing Inteligente</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='icon/icon.png') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icon/iconIa.png') }}">
 </head>
 
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="header-text">
-                <h1>Sistema Anti-Phishing Inteligente</h1>
-                <p class="subtitle">Analiza una URL y detecta si es phishing</p>
+    <div class="main-wrapper">
+        <!-- Columna Izquierda: Analizador -->
+        <div class="container">
+            <div class="header">
+                <div class="header-text">
+                    <h1>Sistema Anti-Phishing Inteligente</h1>
+                    <p class="subtitle">Analiza una URL y detecta si es phishing</p>
+                </div>
+                <img src="{{ url_for('static', filename='icon/iconIa.png') }}" alt="Logo" class="logo">
             </div>
-            <img src="{{ url_for('static', filename='icon/icon.png') }}" alt="Logo" class="logo">
+
+            <input type="text" id="urlInput" placeholder="https://ejemplo.com">
+            <button onclick="checkURL()">Analizar</button>
+
+            <div id="result"></div>
         </div>
 
-        <input type="text" id="urlInput" placeholder="https://ejemplo.com">
-        <button onclick="checkURL()">Analizar</button>
+        <!-- Columna Derecha: Chat -->
+        <div id="chatSection" class="chat-section">
+            <div class="chat-header">
+                <h3>Asistente IA</h3>
+                <p class="chat-subtitle">Asistente de Ciberseguridad 24/7</p>
+            </div>
 
-        <div class="results-wrapper">
-            <!-- Columna Izquierda: Resultados -->
-            <div id="result" class="results-column"></div>
-
-            <!-- Columna Derecha: Chat -->
-            <div id="chatSection" class="chat-section results-column" style="display: none;">
-                <div class="chat-header">
-                    <h3>💬 Asistente IA</h3>
-                    <p class="chat-subtitle">Pregunta sobre este análisis</p>
+            <div class="chat-messages" id="chatMessages">
+                <!-- Mensaje de bienvenida inicial -->
+                <div class="chat-message ai-message">
+                    <div class="message-avatar"></div>
+                    <div class="message-content">
+                        <p>¡Hola! Soy tu asistente de ciberseguridad.</p>
+                        <p>Puedo ayudarte a detectar phishing o responder dudas sobre seguridad online.</p>
+                        <p><strong>Analiza una URL para que pueda darte detalles específicos sobre ella.</strong></p>
+                    </div>
                 </div>
+            </div>
 
-                <div class="chat-messages" id="chatMessages">
-                    <!-- Mensajes aparecerán aquí -->
-                </div>
+            <div class="chat-limit" id="chatLimit"
+                style="font-size: 0.8em; color: #888; text-align: center; margin-bottom: 5px;">
+                <small>Preguntas restantes: <span id="questionsLeft">10</span></small>
+            </div>
 
-                <div class="suggested-questions" id="suggestedQuestions">
-                    <!-- Preguntas sugeridas aparecerán aquí -->
-                </div>
-
-                <div class="chat-input-container">
-                    <input type="text" id="chatInput" placeholder="Escribe tu pregunta..."
-                        onkeypress="handleChatKeyPress(event)">
-                    <button onclick="sendChatMessage()" id="chatSendBtn">Enviar</button>
-                </div>
-
-                <div class="chat-limit" id="chatLimit">
-                    <small>Preguntas: <span id="questionsLeft">10</span>/10</small>
-                </div>
+            <div class="chat-input-container">
+                <input type="text" id="chatInput" placeholder="Escribe tu pregunta..."
+                    onkeypress="handleChatKeyPress(event)">
+                <button onclick="sendChatMessage()" id="chatSendBtn">Enviar</button>
             </div>
         </div>
     </div>

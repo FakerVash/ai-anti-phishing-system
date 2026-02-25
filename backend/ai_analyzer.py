@@ -44,7 +44,7 @@ else:
     CLAUDE_AVAILABLE = False
 
 
-def create_analysis_prompt(url, vt_result, heuristic_result):
+def create_analysis_prompt(url, vt_result, heuristic_result, identity_result=None):
     """
     Crea un prompt avanzado para análisis inteligente con IA.
     """
@@ -78,22 +78,31 @@ def create_analysis_prompt(url, vt_result, heuristic_result):
         scheme = "http"
         has_params = False
     
+    # Extraer datos de Identidad
+    identity_status = identity_result.get("status", "unknown") if identity_result else "unknown"
+    identity_name = identity_result.get("name", "") if identity_result else ""
+    identity_reason = identity_result.get("reason", "") if identity_result else ""
+    
     prompt = f"""Eres un analista experto en ciberseguridad con especialización en phishing, ingeniería social y análisis forense de URLs. Tu tarea es proporcionar un análisis INTELIGENTE y CONTEXTUAL, no solo resumir datos.
 
 **URL A ANALIZAR:**
 {url}
 
-**DATOS TÉCNICOS (para tu contexto):**
+**DATOS TÉCNICOS:**
 
 VirusTotal:
 - Malicioso: {vt_malicious} | Sospechoso: {vt_suspicious} | Inofensivo: {vt_harmless} | Sin detectar: {vt_undetected}
 """ + (f"- Motores alertando: {', '.join(vt_engines[:5])}" if vt_engines else "") + f"""
 """ + (f"- Categorías: {', '.join(vt_categories)}" if vt_categories else "") + f"""
 
-Análisis Heurístico:
+Heurístico:
 - Score: {heur_score}/100 (Nivel: {heur_level})
 - Indicadores: {heur_indicators}
 """ + "\n".join([f"  • {reason}" for reason in heur_reasons[:5]]) + f"""
+
+**ESTADO DE IDENTIDAD (MOTOR VIP):**
+- Estado: {identity_status.upper()}
+""" + (f"- Nombre Confirmado: {identity_name}\n- Razón: {identity_reason}" if identity_status == "verified" else f"- Alerta: {identity_reason}" if identity_status == "impersonation" else "- El dominio es desconocido para el motor de identidad.") + f"""
 
 **TU MISIÓN COMO ANALISTA INTELIGENTE:**
 
@@ -120,24 +129,24 @@ Análisis Heurístico:
    - ¿Qué información podría robar el atacante?
    - ¿Qué consecuencias reales tendría caer en este ataque?
 
-**IMPORTANTE**: 
-- NO repitas solo los datos que te di
-- NO hagas análisis superficial
-- SÍ interpreta patrones y contexto
-- SÍ explica el "por qué" y el "cómo"
-- SÍ proporciona insight valioso que un usuario no vería
+**IMPORTANTE - CRITERIOS DE EVALUACIÓN:**
+- **ESTADO DE IDENTIDAD (MOTOR VIP)**: Si el estado es **IMPERSONATION**, el riesgo DEBE ser **Crítico**. Si el sistema ya detectó una suplantación, tu trabajo es COCORROBORARLO y explicar el peligro, NUNCA decir que es seguro.
+- **TOLERANCIA CERO A LA SUPLANTACIÓN**: Si identificas Typosquatting (ej: `outl3` en lugar de `outlook`), el riesgo DEBE ser **Alto** o **Crítico**. No digas "no es malicioso" si hay engaño visual.
+- **CONSERVADURISMO CONDICIONAL**: Solo sé conservador si el dominio es **Seguro** o **Desconocido** Y no hay rasgos de ingeniería social. Si hay suplantación detectada por el motor de identidad, el conservadurismo NO APLICA.
+- **FALSOS POSITIVOS**: No marques como peligrosos dominios legítimos oficiales (google.com, microsoft.com), pero sé implacable con dominios sospechosos en hostings gratuitos (webcindario, vercel).
+- **COHERENCIA CRÍTICA**: Si mencionas conceptos como "atacante", "phishing", "robo de datos", "suplantación" o "téctica maliciosa", el RIESGO NO PUEDE SER BAJO NI MEDIO. Debe ser **Alto** o **Crítico**.
 
 **FORMATO DE RESPUESTA (EXACTO):**
 
 ANÁLISIS:
-[2-3 oraciones con análisis INTELIGENTE y CONTEXTUAL. Menciona técnicas específicas, patrones detectados, y por qué es peligroso o seguro. No repitas solo los números de VirusTotal.]
+[2-3 oraciones con análisis INTELIGENTE y CONTEXTUAL. Si es seguro, dilo claramente como "SEGURO" o "VERIFICADO". Si es dudoso, explica por qué sin ser alarmista.]
 
 RIESGO: [Bajo/Medio/Alto/Crítico]
 
 RECOMENDACIONES:
-• [Recomendación específica basada en el tipo de amenaza detectada]
-• [Explicación de qué hacer si ya visitaste el sitio]
-• [Prevención: cómo evitar caer en ataques similares]
+• [Recomendación específica]
+• [Si es seguro: "Verificar certificado HTTPS"]
+• [Si es sospechoso: "No ingresar datos personales"]
 """
     
     return prompt
@@ -191,18 +200,18 @@ def parse_ai_response(response_text):
         }
 
 
-def analyze_with_ai(url, vt_result, heuristic_result):
+def analyze_with_ai(url, vt_result, heuristic_result, identity_result=None):
     """
-    Analiza la URL usando IA (Claude) con los resultados de VirusTotal y análisis heurístico.
+    Analiza la URL usando IA (Claude) con los resultados de VirusTotal, análisis heurístico e identidad.
     """
     
     # Si Claude no está disponible, usar fallback
     if not CLAUDE_AVAILABLE:
-        return generate_fallback_analysis(url, vt_result, heuristic_result)
+        return generate_fallback_analysis(url, vt_result, heuristic_result, identity_result)
     
     try:
         # Crear el prompt
-        prompt = create_analysis_prompt(url, vt_result, heuristic_result)
+        prompt = create_analysis_prompt(url, vt_result, heuristic_result, identity_result)
         
         # Generar análisis con Claude
         message = client.messages.create(
@@ -235,11 +244,21 @@ def analyze_with_ai(url, vt_result, heuristic_result):
         return generate_fallback_analysis(url, vt_result, heuristic_result)
 
 
-def generate_fallback_analysis(url, vt_result, heuristic_result):
+def generate_fallback_analysis(url, vt_result, heuristic_result, identity_result=None):
     """
     Genera un análisis detallado y contextual cuando la IA no está disponible.
     """
     from urllib.parse import urlparse
+
+    # Si está verificado por identidad, el riesgo es Bajo automáticamente
+    if identity_result and identity_result.get("status") == "verified":
+        return {
+            "status": "success",
+            "ai_analysis": f"✅ **Identidad Confirmada**: Esta URL pertenece oficialmente a **{identity_result.get('name')}**. El análisis técnico confirma que es el sitio legítimo.",
+            "ai_risk_level": "Bajo",
+            "ai_recommendations": ["✅ Puedes navegar con total confianza", "🔒 Verifica siempre el candado de seguridad"],
+            "source": "identity_override"
+        }
     
     vt_status = vt_result.get("status", "unknown")
     vt_malicious = vt_result.get("stats", {}).get("malicious", 0)
@@ -302,8 +321,8 @@ def generate_fallback_analysis(url, vt_result, heuristic_result):
             "🛡️ Considera cambiar contraseñas si ya visitaste este sitio"
         ]
     
-    # === NIVEL ALTO ===
-    elif total_threats >= 2 or heur_score >= 40:
+    # === NIVEL ALTO (Aumentado por palabras clave sociales) ===
+    elif total_threats >= 2 or heur_score >= 40 or any(word in url.lower() for word in ["secure", "login", "verify", "account", "bank"]):
         risk_level = "Alto"
         
         analysis_parts.append(f"⚠️ Esta URL presenta **señales claras de riesgo** que sugieren actividad maliciosa o phishing.")
@@ -390,7 +409,7 @@ def generate_fallback_analysis(url, vt_result, heuristic_result):
         analysis_parts.append(f"\n**Importante**: La ausencia de alertas no garantiza seguridad al 100%. Mantén siempre prácticas seguras de navegación.")
         
         recommendations = [
-            "✅ Parece seguro, pero verifica que sea el sitio correcto",
+            "✅ Es seguro, puedes navegar con confianza",
             "🔒 Asegúrate de que use HTTPS (candado en el navegador)",
             "🛡️ Mantén tu navegador y antivirus actualizados",
             "💡 Si algo te parece extraño en el sitio, no continues",
